@@ -1,56 +1,116 @@
 import streamlit as st
 from openai import OpenAI
+import json
+from datetime import datetime
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+# Page Configuration
+st.set_page_config(
+    page_title="College Applications Assistant",
+    page_icon="🎓",
+    layout="wide"
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize session state
+if "user_profile" not in st.session_state:
+    st.session_state.user_profile = {}
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Sidebar for User Information
+with st.sidebar:
+    st.title("🎓 College Applications Assistant")
+    st.write("Please fill in your information to get personalized assistance.")
+    
+    # Personal Information
+    st.header("Personal Information")
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    phone = st.text_input("Phone Number")
+    
+    # Academic Information
+    st.header("Academic Information")
+    gpa = st.number_input("GPA (out of 4.0)", min_value=0.0, max_value=4.0, step=0.01)
+    sat_score = st.number_input("SAT Score (if applicable)", min_value=400, max_value=1600, step=10)
+    act_score = st.number_input("ACT Score (if applicable)", min_value=1, max_value=36, step=1)
+    
+    # Target Universities
+    st.header("Target Universities")
+    universities = st.multiselect(
+        "Select your target universities",
+        ["Harvard", "Stanford", "MIT", "Yale", "Princeton", "Columbia", "Other"]
+    )
+    
+    # Intended Major
+    st.header("Academic Interests")
+    major = st.text_input("Intended Major")
+    career_goals = st.text_area("Career Goals")
+    
+    # Save Profile Button
+    if st.button("Save Profile"):
+        st.session_state.user_profile = {
+            "name": name,
+            "email": email,
+            "phone": phone,
+            "gpa": gpa,
+            "sat_score": sat_score,
+            "act_score": act_score,
+            "universities": universities,
+            "major": major,
+            "career_goals": career_goals
+        }
+        st.success("Profile saved successfully!")
+
+# Main Chat Interface
+st.title("College Applications Assistant")
+st.write("I'm here to help you with your college applications. Ask me anything about essays, applications, or interview preparation!")
+
+# Initialize OpenAI client
+openai_api_key = st.secrets["openai_api_key"]
 if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
-
-    # Create an OpenAI client.
     client = OpenAI(api_key=openai_api_key)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Display the existing chat messages via `st.chat_message`.
+    # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
+    # Chat input
+    if prompt := st.chat_input("What would you like help with?"):
+        # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
+        # Prepare context for the AI
+        context = f"""
+        User Profile:
+        {json.dumps(st.session_state.user_profile, indent=2)}
+        
+        Current Chat History:
+        {json.dumps(st.session_state.messages, indent=2)}
+        """
+
+        # Generate response
         stream = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
+                {"role": "system", "content": """You are a college applications assistant. 
+                Your role is to help students with their college applications, including:
+                - Essay writing and review
+                - Application strategy
+                - Interview preparation
+                - University-specific guidance
+                - Timeline management
+                
+                Be supportive, constructive, and provide specific, actionable advice."""},
+                {"role": "user", "content": f"Context: {context}\n\nUser Question: {prompt}"}
             ],
             stream=True,
         )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+        # Display assistant's response
         with st.chat_message("assistant"):
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
