@@ -2,55 +2,57 @@ import streamlit as st
 from openai import OpenAI
 
 # Show title and description.
-st.title("💬 Chatbot")
+st.title("🎓 College Application Assistant")
 st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+    "Welcome to your personal college application assistant! I can help you with:"
+    "\n- Writing and reviewing college essays"
+    "\n- Preparing for interviews"
+    "\n- Understanding application requirements"
+    "\n- Creating a strong application strategy"
+    "\n- Answering questions about the college application process"
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
+# Initialize the OpenAI client
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
-
-    # Create an OpenAI client.
     client = OpenAI(api_key=openai_api_key)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
+    # Initialize chat history
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        st.session_state.messages = [
+            {
+                "role": "system",
+                "content": """You are an expert college application advisor with years of experience helping students get into top universities. 
+                Your role is to provide personalized guidance on college applications, essays, interviews, and the overall application process.
+                Be supportive, encouraging, and provide specific, actionable advice. 
+                When reviewing essays or materials, offer constructive feedback while maintaining a positive tone.
+                Always consider the student's unique background and goals in your responses."""
+            }
+        ]
 
-    # Display the existing chat messages via `st.chat_message`.
+    # Display chat messages
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        if message["role"] != "system":  # Don't display system messages
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
+    # Chat input
+    if prompt := st.chat_input("How can I help with your college application?"):
+        # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
+        # Generate response
         stream = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
+            messages=st.session_state.messages,
             stream=True,
         )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+        # Display assistant response
         with st.chat_message("assistant"):
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
